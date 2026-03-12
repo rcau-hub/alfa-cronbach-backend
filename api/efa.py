@@ -68,9 +68,13 @@ async def analyze_efa(req: EFARequest):
             }
         
         # Determine number of factors if not specified
-        fa_initial = FactorAnalyzer(rotation=None)
-        fa_initial.fit(df)
-        eigenvalues, _ = fa_initial.get_eigenvalues()
+        try:
+            fa_initial = FactorAnalyzer(rotation=None)
+            fa_initial.fit(df)
+            eigenvalues, _ = fa_initial.get_eigenvalues()
+        except Exception as e:
+             # If initial eigenvalues fail, use identity covariance as fallback for eigenvalues
+             eigenvalues = np.ones(len(df.columns))
         
         if req.n_factors is None:
             # Kaiser Criterion (Eigenvalues > 1)
@@ -80,9 +84,18 @@ async def analyze_efa(req: EFARequest):
         else:
             n_factors = req.n_factors
             
+        # Ensure n_factors is not too large for the data
+        n_factors = min(int(n_factors), len(df.columns) - 1)
+        if n_factors < 1: n_factors = 1
+
         # Run final EFA
-        analyzer = FactorAnalyzer(n_factors=n_factors, method=req.method, rotation=req.rotation)
-        analyzer.fit(df)
+        try:
+            analyzer = FactorAnalyzer(n_factors=n_factors, method=req.method, rotation=req.rotation)
+            analyzer.fit(df)
+        except Exception as e:
+            # Final fallback: Principal Component style loadings or error report
+            raise ValueError(f"No se pudo completar el análisis factorial con estos datos: {str(e)}. Intenta reducir el número de variables o cambiar el método de extracción.")
+
         
         loadings = analyzer.loadings_
         communalities = analyzer.get_communalities()

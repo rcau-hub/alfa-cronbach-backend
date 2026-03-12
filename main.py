@@ -11,15 +11,10 @@ app = FastAPI(
     version="1.0.0"
 )
 
-# Configure CORS for Next.js frontend
+# Configure CORS to be as permissive as possible for testing
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:3000",
-        "https://www.utbinvestigacion.com",
-        "https://utbinvestigacion.com"
-    ],
-    allow_credentials=True,
+    allow_origins=["*"],
     allow_methods=["*"],
     allow_headers=["*"],
 )
