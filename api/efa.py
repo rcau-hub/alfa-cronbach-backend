@@ -113,11 +113,23 @@ async def analyze_efa(req: EFARequest):
             elif significant_loadings == 0:
                 warnings.append(f"El ítem '{i}' no carga significativamente (≥ 0.40) en ningún factor.")
                 
+        # Helper to clean NaN values for JS compatibility
+        def sanitize_val(val):
+            if isinstance(val, float) and (np.isnan(val) or np.isinf(val)):
+                return 0 # or None
+            return val
+
         # Data for Scree Plot
         scree_plot_data = {
             "factors": list(range(1, len(eigenvalues) + 1)),
-            "eigenvalues": [float(round(e, 3)) for e in eigenvalues]
+            "eigenvalues": [float(round(sanitize_val(e), 3)) for e in eigenvalues]
         }
+
+        # Clean loadings records
+        loadings_records = loadings_df.reset_index().rename(columns={"index": "Item"}).to_dict(orient="records")
+        for record in loadings_records:
+            for k, v in record.items():
+                record[k] = sanitize_val(v)
 
         return {
             "adequacy": {
@@ -128,10 +140,10 @@ async def analyze_efa(req: EFARequest):
                 "n_factors": int(n_factors),
                 "method": req.method,
                 "rotation": req.rotation,
-                "eigenvalues": [float(round(e, 3)) for e in eigenvalues]
+                "eigenvalues": [float(round(sanitize_val(e), 3)) for e in eigenvalues]
             },
-            "loadings": loadings_df.reset_index().rename(columns={"index": "Item"}).to_dict(orient="records"),
-            "communalities": {item: float(round(com, 3)) for item, com in zip(df.columns, communalities)},
+            "loadings": loadings_records,
+            "communalities": {item: float(round(sanitize_val(com), 3)) for item, com in zip(df.columns, communalities)},
             "warnings": warnings,
             "scree_plot_data": scree_plot_data
         }
