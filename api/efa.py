@@ -30,15 +30,25 @@ async def analyze_efa(req: EFARequest):
         np.random.seed(42)
         df = df + np.random.normal(0, 1e-8, df.shape)
 
+        # Helper to clean NaN values for JS compatibility
+        def sanitize_val(val):
+            if isinstance(val, (float, np.float64, np.float32)) and (np.isnan(val) or np.isinf(val)):
+                return 0.0
+            try:
+                return float(val)
+            except:
+                return val
+
         # Adequacy Tests
         # KMO
         try:
             kmo_all, kmo_model = calculate_kmo(df)
+            kmo_val = sanitize_val(kmo_model)
             kmo = {
-                "value": float(round(kmo_model, 3)),
-                "interpretation": "Adecuado" if kmo_model >= 0.6 else "No Adecuado",
+                "value": round(kmo_val, 3),
+                "interpretation": "Adecuado" if kmo_val >= 0.6 else "No Adecuado",
                 "equation": r"KMO = \frac{\sum \sum_{i \neq j} r_{ij}^2}{\sum \sum_{i \neq j} r_{ij}^2 + \sum \sum_{i \neq j} p_{ij}^2}",
-                "equation_values": rf"KMO = {round(kmo_model, 3)}"
+                "equation_values": rf"KMO = {round(kmo_val, 3)}"
             }
         except Exception as e:
             kmo = {
@@ -51,12 +61,14 @@ async def analyze_efa(req: EFARequest):
         # Bartlett
         try:
             chi_square_value, p_value = calculate_bartlett_sphericity(df)
+            chi_val = sanitize_val(chi_square_value)
+            p_val_clean = sanitize_val(p_value)
             bartlett = {
-                "chi_square": float(round(chi_square_value, 3)),
-                "p_value": float(round(p_value, 4)),
-                "significant": bool(p_value < 0.05),
+                "chi_square": round(chi_val, 3),
+                "p_value": round(p_val_clean, 4),
+                "significant": bool(p_val_clean < 0.05),
                 "equation": r"\chi^2 = -\left( (n-1) - \frac{2p+5}{6} \right) \ln |R|",
-                "equation_values": rf"\chi^2 = {round(chi_square_value, 3)}, \quad p \approx {round(p_value, 4)}"
+                "equation_values": rf"\chi^2 = {round(chi_val, 3)}, \quad p \approx {round(p_val_clean, 4)}"
             }
         except Exception as e:
             bartlett = {
@@ -113,11 +125,6 @@ async def analyze_efa(req: EFARequest):
             elif significant_loadings == 0:
                 warnings.append(f"El ítem '{i}' no carga significativamente (≥ 0.40) en ningún factor.")
                 
-        # Helper to clean NaN values for JS compatibility
-        def sanitize_val(val):
-            if isinstance(val, float) and (np.isnan(val) or np.isinf(val)):
-                return 0 # or None
-            return val
 
         # Data for Scree Plot
         scree_plot_data = {
