@@ -23,9 +23,7 @@ async def analyze_efa(req: EFARequest):
         if len(df.columns) < 3:
              raise ValueError("El Análisis Factorial Exploratorio requiere al menos 3 variables.")
              
-        if len(df) <= len(df.columns):
-             raise ValueError(f"Muestra insuficiente: Tienes {len(df)} respuestas válidas pero intentas analizar {len(df.columns)} variables. Matemáticamente se requiere que el número de participantes sea mayor que el número de preguntas seleccionadas.")
-             
+
         # Add numerical stability to prevent "Singular Matrix" crashes
         # by breaking exact collinearity with an imperceptible micro-variance
         df = df.astype(float)
