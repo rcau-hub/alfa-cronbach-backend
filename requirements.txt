@@ -3,7 +3,8 @@ uvicorn
 pandas
 numpy
 scipy
-factor_analyzer
+factor_analyzer==0.5.1
+scikit-learn<1.6.0
 python-docx
 pydantic
 python-dotenv
