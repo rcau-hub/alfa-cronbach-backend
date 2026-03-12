@@ -25,25 +25,40 @@ async def analyze_efa(req: EFARequest):
              
         # Adequacy Tests
         # KMO
-        kmo_all, kmo_model = calculate_kmo(df)
-        kmo = {
-            "value": float(round(kmo_model, 3)),
-            "interpretation": "Adecuado" if kmo_model >= 0.6 else "No Adecuado",
-            "equation": r"KMO = \frac{\sum \sum_{i \neq j} r_{ij}^2}{\sum \sum_{i \neq j} r_{ij}^2 + \sum \sum_{i \neq j} p_{ij}^2}",
-            "equation_values": rf"KMO = {round(kmo_model, 3)}"
-        }
+        try:
+            kmo_all, kmo_model = calculate_kmo(df)
+            kmo = {
+                "value": float(round(kmo_model, 3)),
+                "interpretation": "Adecuado" if kmo_model >= 0.6 else "No Adecuado",
+                "equation": r"KMO = \frac{\sum \sum_{i \neq j} r_{ij}^2}{\sum \sum_{i \neq j} r_{ij}^2 + \sum \sum_{i \neq j} p_{ij}^2}",
+                "equation_values": rf"KMO = {round(kmo_model, 3)}"
+            }
+        except Exception as e:
+            kmo = {
+                "value": 0,
+                "interpretation": "Error (Matriz Singular)",
+                "equation": r"KMO = \frac{\sum \sum_{i \neq j} r_{ij}^2}{\sum \sum_{i \neq j} r_{ij}^2 + \sum \sum_{i \neq j} p_{ij}^2}",
+                "equation_values": "Error matemático: Datos redundantes o N < Variables"
+            }
         
         # Bartlett
-        chi_square_value, p_value = calculate_bartlett_sphericity(df)
-        n = len(df)
-        p = len(df.columns)
-        bartlett = {
-            "chi_square": float(round(chi_square_value, 3)),
-            "p_value": float(round(p_value, 4)),
-            "significant": bool(p_value < 0.05),
-            "equation": r"\chi^2 = -\left( (n-1) - \frac{2p+5}{6} \right) \ln |R|",
-            "equation_values": rf"\chi^2 = {round(chi_square_value, 3)}, \quad p \approx {round(p_value, 4)}"
-        }
+        try:
+            chi_square_value, p_value = calculate_bartlett_sphericity(df)
+            bartlett = {
+                "chi_square": float(round(chi_square_value, 3)),
+                "p_value": float(round(p_value, 4)),
+                "significant": bool(p_value < 0.05),
+                "equation": r"\chi^2 = -\left( (n-1) - \frac{2p+5}{6} \right) \ln |R|",
+                "equation_values": rf"\chi^2 = {round(chi_square_value, 3)}, \quad p \approx {round(p_value, 4)}"
+            }
+        except Exception as e:
+            bartlett = {
+                "chi_square": 0,
+                "p_value": 1,
+                "significant": False,
+                "equation": r"\chi^2 = -\left( (n-1) - \frac{2p+5}{6} \right) \ln |R|",
+                "equation_values": "Error matemático: Datos redundantes o N < Variables"
+            }
         
         # Determine number of factors if not specified
         fa_initial = FactorAnalyzer(rotation=None)
