@@ -1,0 +1,17 @@
+fastapi
+uvicorn
+pandas
+numpy
+scipy
+factor_analyzer
+python-docx
+pydantic
+python-dotenv
+requests
+PyPDF2
+openpyxl
+xlsxwriter
+pyreadstat
+python-multipart
+python-magic-bin; platform_system == 'Windows'
+python-magic; platform_system != 'Windows'
