@@ -11,16 +11,14 @@ app = FastAPI(
     version="1.0.0"
 )
 
-# Configure CORS
-allowed_origins = [
-    "http://localhost:3000",
-    "https://www.utbinvestigacion.com",
-    os.getenv("FRONTEND_URL", "*")
-]
-
+# Configure CORS for Next.js frontend
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=allowed_origins,
+    allow_origins=[
+        "http://localhost:3000",
+        "https://www.utbinvestigacion.com",
+        "https://utbinvestigacion.com"
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
