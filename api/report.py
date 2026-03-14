@@ -96,9 +96,11 @@ async def export_docx(req: ReportRequest):
                 doc.add_paragraph(f"• Sₜ² = {res.get('total_variance', 'N/A')} (Varianza del puntaje total)")
                 
                 doc.add_paragraph("\n4) Sustitución de la fórmula:")
-                # Limpiamos el texto de la ecuación para el Word si viene con formato LaTeX básico
-                eq_val = res.get('equation_values', 'N/A')
-                doc.add_paragraph(eq_val)
+                k = res.get('n_items', 'N/A')
+                sum_var = res.get('sum_item_variances', 'N/A')
+                tot_var = res.get('total_variance', 'N/A')
+                alpha = res.get('alpha', 'N/A')
+                doc.add_paragraph(f"α = [{k} / ({k} - 1)] × [1 - ({sum_var} / {tot_var})] = {alpha}")
                 
             if res_o and not res_o.get("error") and "item_stats" in res_o:
                 doc.add_heading("Procedimiento: Omega de McDonald", level=3)
@@ -149,8 +151,11 @@ async def export_docx(req: ReportRequest):
                 doc.add_paragraph(f"• (∑λ)² = {res_o.get('sum_loadings_sq', 'N/A')}")
                 
                 doc.add_paragraph("\n5) Fórmula y Sustitución:")
-                doc.add_paragraph(str(res_o.get('equation_values', 'N/A')))
-                doc.add_paragraph(f"\nResultado final: ω = {res_o.get('omega', 'N/A')}")
+                sum_sq = res_o.get('sum_loadings_sq', 'N/A')
+                sum_u = res_o.get('sum_uniqueness', 'N/A')
+                omega = res_o.get('omega', 'N/A')
+                doc.add_paragraph(f"ω = {sum_sq} / ({sum_sq} + {sum_u}) = {omega}")
+                doc.add_paragraph(f"\nResultado final: ω = {omega}")
 
         # 2. Análisis Factorial
         doc.add_heading("2. Análisis Factorial Exploratorio (EFA)", level=1)
