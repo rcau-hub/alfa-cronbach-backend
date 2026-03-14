@@ -246,12 +246,40 @@ async def export_docx(req: ReportRequest):
             doc.add_paragraph(req.ai_efa_report)
             
         if req.efa:
+            doc.add_heading("Procedimiento Analítico de Extracción", level=2)
+            doc.add_paragraph("El objetivo es encontrar si los ítems se agrupan en uno o más factores dentro de la Psychometrics.")
+            
+            n_variables = req.efa.get("n_variables", "N/A")
+            n_cases = req.efa.get("n_cases", "N/A")
+            
+            doc.add_heading("1. Matriz de datos", level=3)
+            doc.add_paragraph(f"Número de variables (k) = {n_variables}")
+            doc.add_paragraph(f"Número de casos (n) = {n_cases}\n")
+            
+            corr_matrix = req.efa.get("correlation_matrix", {})
+            if corr_matrix:
+                doc.add_heading("2. Matriz de correlaciones", level=3)
+                cols_corr = list(corr_matrix.keys())
+                table_corr = doc.add_table(rows=1, cols=len(cols_corr) + 1)
+                table_corr.style = 'Table Grid'
+                hdr_corr = table_corr.rows[0].cells
+                hdr_corr[0].text = "Ítem"
+                for idx, c in enumerate(cols_corr):
+                    hdr_corr[idx + 1].text = str(c)
+                
+                for r_key, row_dict in corr_matrix.items():
+                    row = table_corr.add_row().cells
+                    row[0].text = str(r_key)
+                    for idx, c in enumerate(cols_corr):
+                        val = row_dict.get(c, 0)
+                        row[idx + 1].text = str(val) if val != 0 else "0.0"
+
             doc.add_heading("Adecuación Muestral y Desarrollo Matemático", level=2)
             ade = req.efa.get("adequacy", {})
             kmo = ade.get("kmo", {})
             bart = ade.get("bartlett", {})
             
-            doc.add_heading("1. Índice KMO (Kaiser-Meyer-Olkin)", level=3)
+            doc.add_heading("3. Índice KMO (Kaiser-Meyer-Olkin)", level=3)
             from docx.oxml import parse_xml
             p_kmo_theo = doc.add_paragraph()
             xml_theo_kmo = '''<m:oMathPara xmlns:m="http://schemas.openxmlformats.org/officeDocument/2006/math" xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
@@ -268,7 +296,7 @@ async def export_docx(req: ReportRequest):
             doc.add_paragraph(f"Resultado iterativo: KMO = {kmo.get('value', 'N/A')}")
             doc.add_paragraph(f"Interpretación: {kmo.get('interpretation', 'N/A')}")
             
-            doc.add_heading("2. Prueba de Esfericidad de Bartlett", level=3)
+            doc.add_heading("4. Prueba de Esfericidad de Bartlett", level=3)
             p_bart_theo = doc.add_paragraph()
             xml_theo_bart = '''<m:oMathPara xmlns:m="http://schemas.openxmlformats.org/officeDocument/2006/math" xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
                 <m:oMath>
@@ -283,28 +311,66 @@ async def export_docx(req: ReportRequest):
             </m:oMathPara>'''
             p_bart_theo._element.append(parse_xml(xml_theo_bart))
             
-            doc.add_paragraph(f"Sustitución de Chi cuadardo: χ² = {bart.get('chi_square', 'N/A')}")
+            doc.add_paragraph(f"Sustitución de Chi cuadrado: χ² = {bart.get('chi_square', 'N/A')}")
             doc.add_paragraph(f"Valor p (Significancia) = {bart.get('p_value', 'N/A')}")
             
-            # Loadings Matrix
+            extraction = req.efa.get("extraction", {})
+            eigenvalues = extraction.get("eigenvalues", [])
+            variance = req.efa.get("variance_explained", [])
+            
+            doc.add_heading("5. Extracción de factores", level=3)
+            doc.add_paragraph("Se calculan los eigenvalues (valores propios).")
+            table_eig = doc.add_table(rows=1, cols=3)
+            table_eig.style = 'Table Grid'
+            hdr_eig = table_eig.rows[0].cells
+            hdr_eig[0].text = 'Factor'
+            hdr_eig[1].text = 'Eigenvalue'
+            hdr_eig[2].text = 'Varianza explicada'
+            
+            for i, (eig, var) in enumerate(zip(eigenvalues, variance)):
+                row = table_eig.add_row().cells
+                row[0].text = f"Factor {i+1}"
+                row[1].text = f"{eig:.3f}"
+                row[2].text = f"{var:.1f} %"
+            
+            doc.add_paragraph("\nCriterio de Kaiser (Eigenvalue > 1):")
+            valid_factors = sum(1 for e in eigenvalues if e > 1)
+            doc.add_paragraph(f"Solo {valid_factors} factor(es) cumple(n).")
+            if valid_factors == 1:
+                doc.add_paragraph("✅ Esto indica estructura unidimensional.")
+                
+            doc.add_heading("6. Cargas factoriales", level=3)
             loadings = req.efa.get("loadings", [])
             if loadings:
-                doc.add_heading("Matriz de Cargas Factoriales", level=2)
-                cols = list(loadings[0].keys())
-                table_efa = doc.add_table(rows=1, cols=len(cols))
+                cols_load = list(loadings[0].keys())
+                table_efa = doc.add_table(rows=1, cols=len(cols_load))
                 table_efa.style = 'Table Grid'
-                hdr = table_efa.rows[0].cells
-                for i, c in enumerate(cols):
-                    hdr[i].text = c
+                hdr_load = table_efa.rows[0].cells
+                for i, c in enumerate(cols_load):
+                    hdr_load[i].text = c
                 
                 for row_data in loadings:
                     cells = table_efa.add_row().cells
-                    for i, c in enumerate(cols):
-                        val = row_data[c]
+                    for i, c in enumerate(cols_load):
+                        val = row_data.get(c, "")
                         if isinstance(val, (int, float)):
                             cells[i].text = f"{val:.3f}"
                         else:
                             cells[i].text = str(val)
+
+            doc.add_heading("7. Comunalidades", level=3)
+            doc.add_paragraph("h² = λ²")
+            communalities = req.efa.get("communalities", {})
+            if communalities:
+                table_com = doc.add_table(rows=1, cols=2)
+                table_com.style = 'Table Grid'
+                hdr_com = table_com.rows[0].cells
+                hdr_com[0].text = 'Ítem'
+                hdr_com[1].text = 'Comunalidad'
+                for item_name, com_val in communalities.items():
+                    row = table_com.add_row().cells
+                    row[0].text = str(item_name)
+                    row[1].text = f"{com_val:.3f}"
 
         # Save to memory
         buffer = io.BytesIO()

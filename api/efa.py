@@ -138,7 +138,20 @@ async def analyze_efa(req: EFARequest):
             for k, v in record.items():
                 record[k] = sanitize_val(v)
 
+        # Variance explained
+        total_variance = len(df.columns)
+        variance_explained = []
+        for e in eigenvalues:
+             variance_explained.append(float(round((sanitize_val(e) / total_variance) * 100, 2)))
+             
+        # Correlation matrix
+        corr_matrix = df.corr().fillna(0).round(3).to_dict('index')
+
         return {
+            "n_cases": len(df),
+            "n_variables": len(df.columns),
+            "correlation_matrix": corr_matrix,
+            "variance_explained": variance_explained,
             "adequacy": {
                 "kmo": kmo,
                 "bartlett": bartlett
