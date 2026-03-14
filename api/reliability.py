@@ -124,6 +124,19 @@ def calculate_mcdonald_omega(df: pd.DataFrame):
          else:
              omega = sum_loadings_sq / denominator
          
+         # Correlation matrix
+         corr_matrix = df.corr().fillna(0).round(3).to_dict('index')
+
+         # Format item stats
+         item_stats = []
+         for i, col in enumerate(df.columns):
+             item_stats.append({
+                 "item": col,
+                 "mean": sanitize_val(df[col].mean()),
+                 "loading": sanitize_val(loadings[i]),
+                 "uniqueness": sanitize_val(uniqueness[i])
+             })
+             
          # Sanitize
          omega_clean = sanitize_val(omega)
          sum_loadings_sq_clean = sanitize_val(sum_loadings_sq)
@@ -134,11 +147,15 @@ def calculate_mcdonald_omega(df: pd.DataFrame):
          
          return {
              "omega": round(omega_clean, 3),
+             "sum_loadings": round(sanitize_val(sum_loadings), 3),
              "sum_loadings_sq": round(sum_loadings_sq_clean, 3),
              "sum_uniqueness": round(sum_uniqueness_clean, 3),
              "method": "Principal Axis Factoring (1 factor)",
              "equation": equation,
-             "equation_values": equation_values
+             "equation_values": equation_values,
+             "item_stats": item_stats,
+             "correlations": corr_matrix,
+             "n_cases": len(df)
          }
      except Exception as e:
          return {

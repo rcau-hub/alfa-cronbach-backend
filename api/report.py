@@ -8,8 +8,6 @@ from docx import Document
 from docx.shared import Pt, Inches
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 import json
-import requests
-import urllib.parse
 
 router = APIRouter()
 
@@ -19,236 +17,164 @@ class ReportRequest(BaseModel):
     efa: Optional[Dict[str, Any]] = None
     ai_rel_report: Optional[str] = None
     ai_efa_report: Optional[str] = None
-    full_ai_analysis: Optional[str] = None
-
-def add_math_image(doc, latex):
-    """Fetches a rendered LaTeX image and adds it to the Word document."""
-    try:
-        # Encode LaTeX for URL
-        encoded_latex = urllib.parse.quote(rf"\large {latex}")
-        url = f"https://latex.codecogs.com/png.latex?\inline \dpi{{300}} \bg_white {encoded_latex}"
-        
-        response = requests.get(url, timeout=5)
-        if response.status_code == 200:
-            img_data = io.BytesIO(response.content)
-            # Add to a new centered paragraph
-            p = doc.add_paragraph()
-            p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-            run = p.add_run()
-            run.add_picture(img_data, width=Inches(3.5)) # Standard size for "book" look
-        else:
-            # Fallback to text if service is down
-            doc.add_paragraph(latex, style='Intense Quote')
-    except Exception:
-        # Extreme fallback
-        doc.add_paragraph(latex, style='Intense Quote')
 
 @router.post("/docx")
 async def export_docx(req: ReportRequest):
     try:
         doc = Document()
         
-        # Estilo Global
+        # Style
         style = doc.styles['Normal']
         font = style.font
-        font.name = 'Georgia'
+        font.name = 'Arial'
         font.size = Pt(11)
         
-        # Portada / Título
-        title_section = doc.add_heading(f"Reporte Psicométrico Profesional", 0)
-        title_section.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        # Heading
+        title_text = f"Reporte de Análisis Psicométrico: {req.instrument_name or 'Instrumento Sin Nombre'}"
+        title = doc.add_heading(title_text, 0)
+        title.alignment = WD_ALIGN_PARAGRAPH.CENTER
         
-        inst_name = doc.add_paragraph(req.instrument_name or "Instrumento de Investigación")
-        inst_name.alignment = WD_ALIGN_PARAGRAPH.CENTER
-        inst_name.runs[0].bold = True
-        inst_name.runs[0].font.size = Pt(16)
-        
-        doc.add_page_break()
-
-        # Índice Mental / Introducción
-        doc.add_heading("I. Introducción y Resumen Ejecutivo", level=1)
-        if req.full_ai_analysis:
-            doc.add_paragraph(req.full_ai_analysis)
-        else:
-            doc.add_paragraph("Este informe presenta los resultados de los análisis de consistencia interna y validez de constructo realizados sobre el instrumento.")
+        doc.add_paragraph("Este reporte ha sido generado automáticamente para fines académicos.")
 
         # 1. Confiabilidad
-        doc.add_heading("II. Análisis de Fiabilidad (Consistencia Interna)", level=1)
-        doc.add_paragraph(
-            "La fiabilidad es la precisión con la que el instrumento mide el constructo. "
-            "Se han calculado el Alfa de Cronbach y el Omega de McDonald para evaluar la relación entre los ítems."
-        )
+        doc.add_heading("1. Análisis de Confiabilidad", level=1)
         
-        if req.reliability:
-            # Alfa de Cronbach Desarrollo
-            doc.add_heading("2.1. Coeficiente Alfa de Cronbach", level=2)
-            res_c = req.reliability.get("cronbach", {})
-            doc.add_paragraph(f"El valor obtenido es α = {res_c.get('alpha', 'N/A')}.")
-            
-            doc.add_heading("2.1.1. Insumos para el cálculo (Varianzas)", level=3)
-            doc.add_paragraph(
-                "Para obtener el Alfa de Cronbach, primero calculamos la varianza individual de cada uno de los ítems "
-                "y la varianza total de la suma de los puntajes."
-            )
-            
-            # Table for Item Variances
-            stats = res_c.get("item_stats", [])
-            if stats:
-                table_v = doc.add_table(rows=1, cols=3)
-                table_v.style = 'Table Grid'
-                hdr = table_v.rows[0].cells
-                hdr[0].text = "Ítem"
-                hdr[1].text = "Media"
-                hdr[2].text = "Varianza (σ²)"
-                
-                for s in stats:
-                    row = table_v.add_row().cells
-                    row[0].text = str(s.get("item"))
-                    row[1].text = f"{s.get('mean', 0):.3f}"
-                    # Individual variances are not in item_stats, let's assume we can get them or use std_dev^2
-                    row[2].text = f"{s.get('std_dev', 0)**2:.3f}"
+        if req.ai_rel_report:
+            doc.add_heading("Interpretación del Experto (IA)", level=2)
+            doc.add_paragraph(req.ai_rel_report)
 
-            doc.add_heading("Desarrollo Matemático Detallado:", level=3)
-            doc.add_paragraph("La fórmula de Cronbach se basa en la relación entre la suma de varianzas individuales y la varianza total:")
-            add_math_image(doc, res_c.get("equation", r"\alpha = \frac{k}{k-1} ..."))
+        if req.reliability:
+            doc.add_heading("Matriz de Resultados Numéricos", level=2)
+            table = doc.add_table(rows=1, cols=3)
+            table.style = 'Table Grid'
+            hdr_cells = table.rows[0].cells
+            hdr_cells[0].text = 'Medida de Consistencia'
+            hdr_cells[1].text = 'Valor Obtenido'
+            hdr_cells[2].text = 'Interpretación'
             
-            doc.add_paragraph(
-                f"Donde k = {res_c.get('n_items')} ítems. "
-                f"La suma de las varianzas individuales (∑σᵢ²) es {res_c.get('sum_item_variances')} "
-                f"y la varianza total observada (σₜ²) es {res_c.get('total_variance')}."
-            )
+            # Cronbach
+            res = req.reliability.get("cronbach", {})
+            if res:
+                row = table.add_row().cells
+                row[0].text = "Alfa de Cronbach"
+                row[1].text = str(res.get("alpha", "N/A"))
+                row[2].text = "Considerada alta" if (res.get("alpha", 0) or 0) >= 0.7 else "Requiere revisión"
             
-            doc.add_paragraph("Sustitución técnica:")
-            add_math_image(doc, res_c.get("equation_values", ""))
-            
-            # Omega de McDonald
-            doc.add_heading("2.2. Coeficiente Omega de McDonald", level=2)
+            # Omega
             res_o = req.reliability.get("mcdonald_omega", {})
             if res_o and not res_o.get("error"):
-                doc.add_paragraph(f"El valor de Omega es ω = {res_o.get('omega', 'N/A')}.")
-                doc.add_paragraph(
-                    "El coeficiente Omega es más robusto ya que utiliza las cargas factoriales (λ) de un Análisis Factorial "
-                    "de un solo factor para ponderar la importancia de cada ítem."
-                )
+                row_o = table.add_row().cells
+                row_o[0].text = "Omega de McDonald"
+                row_o[1].text = str(res_o.get("omega", "N/A"))
+                row_o[2].text = "Consistente" if (res_o.get("omega", 0) or 0) >= 0.7 else "Baja"
+
+            doc.add_heading("Detalles del Procedimiento Matemático", level=2)
+            
+            if res and "item_stats" in res:
+                doc.add_heading("Procedimiento: Alfa de Cronbach", level=3)
+                n_items = res.get('n_items', 0)
                 
-                doc.add_heading("2.2.1. Pesos y Unicidades (Cargas Factoriales)", level=3)
-                doc.add_paragraph(
-                    "A continuación se presentan los valores de carga (λ), que representan la relación del ítem con el factor, "
-                    "y la unicidad (u²), que representa el error de medición o varianza no compartida."
-                )
+                doc.add_paragraph(f"1) Número de ítems (k) = {n_items}")
                 
-                loadings = res_o.get("loadings", [])
-                uniquenesses = res_o.get("uniquenesses", [])
+                # Medias y varianzas
+                doc.add_paragraph("2) Estadísticos descriptivos por ítem:")
+                table_stats = doc.add_table(rows=1, cols=3)
+                table_stats.style = 'Table Grid'
+                hdr_stats = table_stats.rows[0].cells
+                hdr_stats[0].text = 'Ítem'
+                hdr_stats[1].text = 'Media'
+                hdr_stats[2].text = 'Desviación Estándar'
                 
-                if loadings and uniquenesses:
-                    table_o = doc.add_table(rows=1, cols=3)
-                    table_o.style = 'Table Grid'
-                    hdr_o = table_o.rows[0].cells
-                    hdr_o[0].text = "Ítem"
-                    hdr_o[1].text = "Carga (λ)"
-                    hdr_o[2].text = "Unicidad (u²)"
+                for item in res.get("item_stats", []):
+                    row = table_stats.add_row().cells
+                    row[0].text = str(item.get("item", ""))
+                    row[1].text = f"{item.get('mean', 0):.3f}"
+                    row[2].text = f"{item.get('std_dev', 0):.3f}"
+                
+                doc.add_paragraph("\n3) Parámetros de la fórmula:")
+                doc.add_paragraph(f"• ∑Sᵢ² = {res.get('sum_item_variances', 'N/A')} (Suma de las varianzas individuales)")
+                doc.add_paragraph(f"• Sₜ² = {res.get('total_variance', 'N/A')} (Varianza del puntaje total)")
+                
+                doc.add_paragraph("\n4) Sustitución de la fórmula:")
+                # Limpiamos el texto de la ecuación para el Word si viene con formato LaTeX básico
+                eq_val = res.get('equation_values', 'N/A')
+                doc.add_paragraph(eq_val)
+                
+            if res_o and not res_o.get("error") and "item_stats" in res_o:
+                doc.add_heading("Procedimiento: Omega de McDonald", level=3)
+                n_items = res.get('n_items', 'N/A') if res else len(res_o.get("item_stats", []))
+                n_cases = res_o.get('n_cases', 'N/A')
+                doc.add_paragraph(f"1) Número de ítems (k) = {n_items}")
+                doc.add_paragraph(f"Número de participantes (n) = {n_cases}\n")
+                
+                doc.add_paragraph("2) Matriz de Correlaciones (Resumen de consistencia entre ítems)")
+                correlations = res_o.get("correlations", {})
+                if correlations:
+                    cols = list(correlations.keys())
+                    table_corr = doc.add_table(rows=1, cols=len(cols) + 1)
+                    table_corr.style = 'Table Grid'
+                    hdr_corr = table_corr.rows[0].cells
+                    hdr_corr[0].text = "Ítem"
+                    for idx, c in enumerate(cols):
+                        hdr_corr[idx + 1].text = str(c)
                     
-                    # We need the item names, which we can get from item_stats if available
-                    items = [s.get("item") for s in res_c.get("item_stats", [])]
-                    for i, (l, u) in enumerate(zip(loadings, uniquenesses)):
-                        row = table_o.add_row().cells
-                        row[0].text = str(items[i]) if i < len(items) else f"Ítem {i+1}"
-                        row[1].text = f"{l:.3f}"
-                        row[2].text = f"{u:.3f}"
+                    for r_key, row_dict in correlations.items():
+                        row = table_corr.add_row().cells
+                        row[0].text = str(r_key)
+                        for idx, c in enumerate(cols):
+                            val = row_dict.get(c, 0)
+                            row[idx + 1].text = str(val) if val != 0 else "0.0"
+                
+                doc.add_paragraph("\n3) Extraer factor común y varianza de error")
+                p_note = doc.add_paragraph()
+                p_note.add_run("Nota: ").bold = True
+                p_note.add_run("Análisis factorial de un solo factor (Principal Axis Factoring).")
+                
+                table_fa = doc.add_table(rows=1, cols=3)
+                table_fa.style = 'Table Grid'
+                hdr_fa = table_fa.rows[0].cells
+                hdr_fa[0].text = 'Ítem'
+                hdr_fa[1].text = 'Carga Factorial (λ)'
+                hdr_fa[2].text = 'Varianza de Error (θ)'
+                
+                for item in res_o.get("item_stats", []):
+                    row = table_fa.add_row().cells
+                    row[0].text = str(item.get("item", ""))
+                    row[1].text = f"{item.get('loading', 0):.3f}"
+                    row[2].text = f"{item.get('uniqueness', 0):.3f}"
 
-                add_math_image(doc, res_o.get("equation", ""))
-                doc.add_paragraph(
-                    f"Donde la suma de cargas al cuadrado (∑λ)² es {res_o.get('sum_loadings_sq')} "
-                    f"y la suma de unicidades (∑u²) es {res_o.get('sum_uniqueness')}."
-                )
-                doc.add_paragraph("Sustitución técnica:")
-                add_math_image(doc, res_o.get("equation_values", ""))
-
-            # AI Interpretation
-            if req.ai_rel_report:
-                doc.add_heading("Interpretación Técnica Sugerida:", level=3)
-                doc.add_paragraph(req.ai_rel_report)
+                doc.add_paragraph("\n4) Sumatorias:")
+                doc.add_paragraph(f"• Suma de cargas (∑λ) = {res_o.get('sum_loadings', 'N/A')}")
+                doc.add_paragraph(f"• Suma de errores (∑θ) = {res_o.get('sum_uniqueness', 'N/A')}")
+                doc.add_paragraph(f"• (∑λ)² = {res_o.get('sum_loadings_sq', 'N/A')}")
+                
+                doc.add_paragraph("\n5) Fórmula y Sustitución:")
+                doc.add_paragraph(str(res_o.get('equation_values', 'N/A')))
+                doc.add_paragraph(f"\nResultado final: ω = {res_o.get('omega', 'N/A')}")
 
         # 2. Análisis Factorial
-        doc.add_heading("III. Análisis Factorial Exploratorio (Validez de Constructo)", level=1)
-        doc.add_paragraph(
-            "El Análisis Factorial permite identificar las dimensiones subyacentes del test, "
-            "verificando si los ítems se agrupan de acuerdo con la teoría propuesta."
-        )
+        doc.add_heading("2. Análisis Factorial Exploratorio (EFA)", level=1)
         
+        if req.ai_efa_report:
+            doc.add_heading("Interpretación de la Estructura (IA)", level=2)
+            doc.add_paragraph(req.ai_efa_report)
+            
         if req.efa:
-            doc.add_heading("3.1. Pruebas de Calidad Muestral", level=2)
+            doc.add_heading("Adecuación Muestral", level=2)
             ade = req.efa.get("adequacy", {})
             kmo = ade.get("kmo", {})
             bart = ade.get("bartlett", {})
             
-            # KMO Equation
-            doc.add_heading("Índice KMO:", level=3)
-            doc.add_paragraph(
-                "El índice KMO (Kaiser-Meyer-Olkin) compara las correlaciones observadas con las correlaciones parciales. "
-                "Valores cercanos a 1 indican que el análisis factorial es muy adecuado."
-            )
-            add_math_image(doc, kmo.get("equation", ""))
+            p = doc.add_paragraph()
+            p.add_run(f"- KMO (Kaiser-Meyer-Olkin): ").bold = True
+            p.add_run(f"{kmo.get('value')} ({kmo.get('interpretation')})\n")
+            p.add_run(f"- Prueba de Bartlett: ").bold = True
+            p.add_run(f"Chi2={bart.get('chi_square')}, p-valor={bart.get('p_value')}\n")
             
-            if kmo.get("equation_values"):
-                doc.add_paragraph("Sustitución técnica:")
-                add_math_image(doc, kmo.get("equation_values"))
-            
-            # Bartlett Equation
-            doc.add_heading("Prueba de Bartlett:", level=3)
-            doc.add_paragraph(
-                "Esta prueba evalúa la hipótesis nula de que la matriz de correlaciones es una matriz identidad "
-                "(es decir, que no hay relación entre los ítems)."
-            )
-            add_math_image(doc, bart.get("equation", ""))
-            
-            if bart.get("equation_values"):
-                doc.add_paragraph("Desarrollo Matemático:")
-                add_math_image(doc, bart.get("equation_values"))
-            
-            table_ade = doc.add_table(rows=3, cols=2)
-            table_ade.style = 'Table Grid'
-            hdr_a = table_ade.rows[0].cells
-            hdr_a[0].text = "Estadístico"
-            hdr_a[1].text = "Resultado"
-            
-            table_ade.cell(1,0).text = "Kaiser-Meyer-Olkin (KMO)"
-            table_ade.cell(1,1).text = f"{kmo.get('value')} ({kmo.get('interpretation')})"
-            
-            table_ade.cell(2,0).text = "Bartlett (p-valor)"
-            table_ade.cell(2,1).text = f"{bart.get('p_value')} ({'Significativo' if bart.get('significant') else 'No Significativo'})"
-
-            # Explained Variance Section
-            doc.add_heading("3.2. Varianza Explicada (Autovalores)", level=2)
-            doc.add_paragraph(
-                "Los autovalores (eigenvalues) indican la cantidad de varianza total que explica cada factor. "
-                "Siguiendo el criterio de Kaiser, se retienen factores con autovalores superiores a 1."
-            )
-            
-            extraction = req.efa.get("extraction", {})
-            eigenvalues = extraction.get("eigenvalues", [])
-            if eigenvalues:
-                table_e = doc.add_table(rows=1, cols=3)
-                table_e.style = 'Table Grid'
-                hdr_e = table_e.rows[0].cells
-                hdr_e[0].text = "Factor"
-                hdr_e[1].text = "Autovalor"
-                hdr_e[2].text = "% Varianza (Aprox.)"
-                
-                total_ev = sum(eigenvalues)
-                for i, ev in enumerate(eigenvalues):
-                    if i >= 10: break # Don't list too many
-                    row = table_e.add_row().cells
-                    row[0].text = f"Factor {i+1}"
-                    row[1].text = f"{ev:.3f}"
-                    row[2].text = f"{(ev/total_ev*100):.2f}%"
-
-            # Matriz de Cargas
+            # Loadings Matrix
             loadings = req.efa.get("loadings", [])
             if loadings:
-                doc.add_heading("3.3. Matriz de Cargas Factoriales", level=2)
-                doc.add_paragraph("Esta tabla muestra cuánto 'pesa' cada ítem en los factores identificados (Cargas > 0.40 se consideran significativas):")
-                
+                doc.add_heading("Matriz de Cargas Factoriales", level=2)
                 cols = list(loadings[0].keys())
                 table_efa = doc.add_table(rows=1, cols=len(cols))
                 table_efa.style = 'Table Grid'
@@ -260,16 +186,10 @@ async def export_docx(req: ReportRequest):
                     cells = table_efa.add_row().cells
                     for i, c in enumerate(cols):
                         val = row_data[c]
-                        cells[i].text = f"{val:.3f}" if isinstance(val, (float)) else str(val)
-
-            # AI Interpretation EFA
-            if req.ai_efa_report:
-                doc.add_heading("Conclusiones de la Estructura Factorial:", level=3)
-                doc.add_paragraph(req.ai_efa_report)
-
-        # Final
-        doc.add_heading("IV. Firma del Sistema", level=1)
-        doc.add_paragraph("Este documento tiene validez académica y científica para ser utilizado en procesos de validación de instrumentos.")
+                        if isinstance(val, (int, float)):
+                            cells[i].text = f"{val:.3f}"
+                        else:
+                            cells[i].text = str(val)
 
         # Save to memory
         buffer = io.BytesIO()
