@@ -246,16 +246,45 @@ async def export_docx(req: ReportRequest):
             doc.add_paragraph(req.ai_efa_report)
             
         if req.efa:
-            doc.add_heading("Adecuación Muestral", level=2)
+            doc.add_heading("Adecuación Muestral y Desarrollo Matemático", level=2)
             ade = req.efa.get("adequacy", {})
             kmo = ade.get("kmo", {})
             bart = ade.get("bartlett", {})
             
-            p = doc.add_paragraph()
-            p.add_run(f"- KMO (Kaiser-Meyer-Olkin): ").bold = True
-            p.add_run(f"{kmo.get('value')} ({kmo.get('interpretation')})\n")
-            p.add_run(f"- Prueba de Bartlett: ").bold = True
-            p.add_run(f"Chi2={bart.get('chi_square')}, p-valor={bart.get('p_value')}\n")
+            doc.add_heading("1. Índice KMO (Kaiser-Meyer-Olkin)", level=3)
+            from docx.oxml import parse_xml
+            p_kmo_theo = doc.add_paragraph()
+            xml_theo_kmo = '''<m:oMathPara xmlns:m="http://schemas.openxmlformats.org/officeDocument/2006/math" xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+                <m:oMath>
+                    <m:r><m:t>KMO = </m:t></m:r>
+                    <m:f>
+                        <m:fPr><m:ctrlPr/></m:fPr>
+                        <m:num><m:r><m:t>&#8721;r&#178;</m:t></m:r></m:num>
+                        <m:den><m:r><m:t>&#8721;r&#178; + &#8721;p&#178;</m:t></m:r></m:den>
+                    </m:f>
+                </m:oMath>
+            </m:oMathPara>'''
+            p_kmo_theo._element.append(parse_xml(xml_theo_kmo))
+            doc.add_paragraph(f"Resultado iterativo: KMO = {kmo.get('value', 'N/A')}")
+            doc.add_paragraph(f"Interpretación: {kmo.get('interpretation', 'N/A')}")
+            
+            doc.add_heading("2. Prueba de Esfericidad de Bartlett", level=3)
+            p_bart_theo = doc.add_paragraph()
+            xml_theo_bart = '''<m:oMathPara xmlns:m="http://schemas.openxmlformats.org/officeDocument/2006/math" xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+                <m:oMath>
+                    <m:r><m:t>&#967;&#178; = - [(n - 1) - </m:t></m:r>
+                    <m:f>
+                        <m:fPr><m:ctrlPr/></m:fPr>
+                        <m:num><m:r><m:t>2p + 5</m:t></m:r></m:num>
+                        <m:den><m:r><m:t>6</m:t></m:r></m:den>
+                    </m:f>
+                    <m:r><m:t>] ln |R|</m:t></m:r>
+                </m:oMath>
+            </m:oMathPara>'''
+            p_bart_theo._element.append(parse_xml(xml_theo_bart))
+            
+            doc.add_paragraph(f"Sustitución de Chi cuadardo: χ² = {bart.get('chi_square', 'N/A')}")
+            doc.add_paragraph(f"Valor p (Significancia) = {bart.get('p_value', 'N/A')}")
             
             # Loadings Matrix
             loadings = req.efa.get("loadings", [])
