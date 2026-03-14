@@ -100,7 +100,33 @@ async def export_docx(req: ReportRequest):
                 sum_var = res.get('sum_item_variances', 'N/A')
                 tot_var = res.get('total_variance', 'N/A')
                 alpha = res.get('alpha', 'N/A')
-                doc.add_paragraph(f"α = [{k} / ({k} - 1)] × [1 - ({sum_var} / {tot_var})] = {alpha}")
+                
+                from docx.oxml import parse_xml
+                p_eq = doc.add_paragraph()
+                xml_alpha = f'''<m:oMathPara xmlns:m="http://schemas.openxmlformats.org/officeDocument/2006/math" xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+                    <m:oMath>
+                        <m:r><m:t>&#945; = </m:t></m:r>
+                        <m:f>
+                            <m:fPr><m:ctrlPr/></m:fPr>
+                            <m:num><m:r><m:t>{k}</m:t></m:r></m:num>
+                            <m:den><m:r><m:t>{k} - 1</m:t></m:r></m:den>
+                        </m:f>
+                        <m:r><m:t> &#215; </m:t></m:r>
+                        <m:d>
+                            <m:dPr><m:ctrlPr/></m:dPr>
+                            <m:e>
+                                <m:r><m:t>1 - </m:t></m:r>
+                                <m:f>
+                                    <m:fPr><m:ctrlPr/></m:fPr>
+                                    <m:num><m:r><m:t>{sum_var}</m:t></m:r></m:num>
+                                    <m:den><m:r><m:t>{tot_var}</m:t></m:r></m:den>
+                                </m:f>
+                            </m:e>
+                        </m:d>
+                        <m:r><m:t> = {alpha}</m:t></m:r>
+                    </m:oMath>
+                </m:oMathPara>'''
+                p_eq._element.append(parse_xml(xml_alpha))
                 
             if res_o and not res_o.get("error") and "item_stats" in res_o:
                 doc.add_heading("Procedimiento: Omega de McDonald", level=3)
@@ -154,7 +180,21 @@ async def export_docx(req: ReportRequest):
                 sum_sq = res_o.get('sum_loadings_sq', 'N/A')
                 sum_u = res_o.get('sum_uniqueness', 'N/A')
                 omega = res_o.get('omega', 'N/A')
-                doc.add_paragraph(f"ω = {sum_sq} / ({sum_sq} + {sum_u}) = {omega}")
+                
+                from docx.oxml import parse_xml
+                p_eq_omega = doc.add_paragraph()
+                xml_omega = f'''<m:oMathPara xmlns:m="http://schemas.openxmlformats.org/officeDocument/2006/math" xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+                    <m:oMath>
+                        <m:r><m:t>&#969; = </m:t></m:r>
+                        <m:f>
+                            <m:fPr><m:ctrlPr/></m:fPr>
+                            <m:num><m:r><m:t>{sum_sq}</m:t></m:r></m:num>
+                            <m:den><m:r><m:t>{sum_sq} + {sum_u}</m:t></m:r></m:den>
+                        </m:f>
+                        <m:r><m:t> = {omega}</m:t></m:r>
+                    </m:oMath>
+                </m:oMathPara>'''
+                p_eq_omega._element.append(parse_xml(xml_omega))
                 doc.add_paragraph(f"\nResultado final: ω = {omega}")
 
         # 2. Análisis Factorial
