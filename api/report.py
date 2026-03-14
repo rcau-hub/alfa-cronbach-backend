@@ -91,11 +91,38 @@ async def export_docx(req: ReportRequest):
                     row[1].text = f"{item.get('mean', 0):.3f}"
                     row[2].text = f"{item.get('std_dev', 0):.3f}"
                 
-                doc.add_paragraph("\n3) Parámetros de la fórmula:")
+                doc.add_paragraph("\n3) Fórmula Teórica:")
+                from docx.oxml import parse_xml
+                p_eq_theo_alpha = doc.add_paragraph()
+                xml_theo_alpha = '''<m:oMathPara xmlns:m="http://schemas.openxmlformats.org/officeDocument/2006/math" xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+                    <m:oMath>
+                        <m:r><m:t>&#945; = </m:t></m:r>
+                        <m:f>
+                            <m:fPr><m:ctrlPr/></m:fPr>
+                            <m:num><m:r><m:t>k</m:t></m:r></m:num>
+                            <m:den><m:r><m:t>k - 1</m:t></m:r></m:den>
+                        </m:f>
+                        <m:r><m:t> &#215; </m:t></m:r>
+                        <m:d>
+                            <m:dPr><m:ctrlPr/></m:dPr>
+                            <m:e>
+                                <m:r><m:t>1 - </m:t></m:r>
+                                <m:f>
+                                    <m:fPr><m:ctrlPr/></m:fPr>
+                                    <m:num><m:r><m:t>&#8721;S&#7522;&#178;</m:t></m:r></m:num>
+                                    <m:den><m:r><m:t>S&#8348;&#178;</m:t></m:r></m:den>
+                                </m:f>
+                            </m:e>
+                        </m:d>
+                    </m:oMath>
+                </m:oMathPara>'''
+                p_eq_theo_alpha._element.append(parse_xml(xml_theo_alpha))
+
+                doc.add_paragraph("\n4) Parámetros de la fórmula:")
                 doc.add_paragraph(f"• ∑Sᵢ² = {res.get('sum_item_variances', 'N/A')} (Suma de las varianzas individuales)")
                 doc.add_paragraph(f"• Sₜ² = {res.get('total_variance', 'N/A')} (Varianza del puntaje total)")
                 
-                doc.add_paragraph("\n4) Sustitución de la fórmula:")
+                doc.add_paragraph("\n5) Sustitución:")
                 k = res.get('n_items', 'N/A')
                 sum_var = res.get('sum_item_variances', 'N/A')
                 tot_var = res.get('total_variance', 'N/A')
@@ -171,12 +198,26 @@ async def export_docx(req: ReportRequest):
                     row[1].text = f"{item.get('loading', 0):.3f}"
                     row[2].text = f"{item.get('uniqueness', 0):.3f}"
 
-                doc.add_paragraph("\n4) Sumatorias:")
+                doc.add_paragraph("\n4) Fórmula Teórica:")
+                p_eq_theo_omega = doc.add_paragraph()
+                xml_theo_omega = '''<m:oMathPara xmlns:m="http://schemas.openxmlformats.org/officeDocument/2006/math" xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+                    <m:oMath>
+                        <m:r><m:t>&#969; = </m:t></m:r>
+                        <m:f>
+                            <m:fPr><m:ctrlPr/></m:fPr>
+                            <m:num><m:r><m:t>(&#8721;&#955;&#7522;)&#178;</m:t></m:r></m:num>
+                            <m:den><m:r><m:t>(&#8721;&#955;&#7522;)&#178; + &#8721;&#968;&#7522;</m:t></m:r></m:den>
+                        </m:f>
+                    </m:oMath>
+                </m:oMathPara>'''
+                p_eq_theo_omega._element.append(parse_xml(xml_theo_omega))
+
+                doc.add_paragraph("\n5) Sumatorias:")
                 doc.add_paragraph(f"• Suma de cargas (∑λ) = {res_o.get('sum_loadings', 'N/A')}")
                 doc.add_paragraph(f"• Suma de errores (∑θ) = {res_o.get('sum_uniqueness', 'N/A')}")
                 doc.add_paragraph(f"• (∑λ)² = {res_o.get('sum_loadings_sq', 'N/A')}")
                 
-                doc.add_paragraph("\n5) Fórmula y Sustitución:")
+                doc.add_paragraph("\n6) Sustitución:")
                 sum_sq = res_o.get('sum_loadings_sq', 'N/A')
                 sum_u = res_o.get('sum_uniqueness', 'N/A')
                 omega = res_o.get('omega', 'N/A')
